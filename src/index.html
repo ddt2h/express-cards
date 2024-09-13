@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Socket.IO Game Cards</title>
+</head>
+<input type="text" placeholder="Your name" id="i-name"> </input>
+<div id="i-turn">Turn: Name</div>
+<div id="i-players">Players: Name[5], Name2[3]</div>
+<div id="i-ready-list">Ready: 1/2</div>
+
+<div id="i-cards-left">Cards left: 12</div>
+<div id="i-table-info">Table: 5, 5, 5, 5</div>
+<div id="i-deck">Deck: 1, 4, 2, 5</div>
+<div id="i-selected">You selected: </div>
+
+<button id="b-ready">Ready</button>
+<button id="b-get">Get card</button>
+<button id="b-place">Place</button>
+<button id="b-turn">Dont believe</button>
+
+
+
+
+
+<!-- Dialog Window -->
+<div id="dialog" class="dialog">
+    <div class="dialog-content">
+        <h2>Select a Number for Each Rectangle</h2>
+        <div class="rectangles-container" id="rectangles-container">
+            <!-- Rectangles will be generated here -->
+        </div>
+        <div class="dialog-buttons">
+            <button id="confirm">Confirm</button>
+            <button id="cancel">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<body>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script>
+        const nameEl = document.getElementById('i-name');
+        const turnEl = document.getElementById('i-turn');
+        const playersEl = document.getElementById('i-players');
+        const readyListEl = document.getElementById('i-ready-list');
+
+        const cardsLeftEl = document.getElementById('i-cards-left');
+        const tableEl = document.getElementById('i-table-info');
+        const deckEl = document.getElementById('i-deck');
+        const selectedEl = document.getElementById('i-selected');
+
+        const readyButtonEl = document.getElementById('b-ready');
+        const getButtonEl = document.getElementById('b-get');
+        const placeButtonEl = document.getElementById('b-place');
+        const turnButtonEl = document.getElementById('b-turn');
+
+        //temp
+        document.getElementById('dialog').style.display = 'none';
+
+        //vars, mb not temp
+        let userDeck = [];
+        let tableDeck = [];
+        let userSelected = { ids: [], as: [] };
+
+        const socket = io(window.location.origin);
+
+        function setPlace() {
+            const selectedNumber = prompt('Select a number from 1 to 10:', '1');
+            const number = parseInt(selectedNumber);
+            if (number >= 1 && number <= 10) {
+
+            } else {
+                alert('Please enter a valid number between 1 and 10.');
+            }
+        }
+
+        socket.on('state', (state) => {
+            let stateObj = JSON.parse(state);
+            //
+            turnEl.textContent = 'Turn: ' + stateObj.whoActsName;
+
+            //
+            playersEl.textContent = 'Players: ';
+            for (let i = 0; i < stateObj.usernames.length; i++) {
+                playersEl.textContent += (i + 1) + ') ' + stateObj.usernames[i] + ' [' + stateObj.usersCardsCount[i] + '] ';
+            }
+
+            //
+            readyListEl.textContent = `Ready: ${stateObj.readyCount}/${stateObj.usernames.length}`;
+
+            //
+            cardsLeftEl.textContent = `Cards left: ${stateObj.remainingCards}`;
+
+            //
+            tableEl.textContent = 'Table: ';
+            for (let i = 0; i < stateObj.tableCards.length; i++) {
+                tableEl.textContent += stateObj.tableCards[i] + ' ';
+            }
+
+            deckEl.textContent = 'Deck: ';
+            userDeck = [];
+            for (let i = 0; i < stateObj.yourCards.length; i++) {
+                deckEl.textContent += stateObj.yourCards[i] + ' ';
+                userDeck.push(stateObj.yourCards[i]);
+            }
+        });
+
+        socket.on('turn_result', (res) => {
+            let resBool = JSON.parse(res).result;
+            alert(resBool ? 'He told the truth' : 'He lied');
+        });
+
+        socket.on('your_name', (name) => {
+            nameEl.value = name;
+        });
+
+        socket.on('error', (err) => {
+            alert(err);
+        });
+
+        socket.on('winner', (name) => {
+            alert('WINNER IS ' + name);
+        });
+
+        readyButtonEl.addEventListener('click', () => {
+            socket.emit('ready');
+        });
+
+        getButtonEl.addEventListener('click', () => {
+            socket.emit('get_card');
+        });
+
+        turnButtonEl.addEventListener('click', () => {
+            socket.emit('turn');
+        });
+
+        placeButtonEl.addEventListener('click', () => {
+            userSelected = { ids: [], as: [] };
+            selectedEl.textContent = 'You selected: ';
+            document.getElementById('dialog').style.display = 'flex';
+
+            const container = document.getElementById('rectangles-container');
+            container.innerHTML = '';
+            for (let i = 0; i < userDeck.length; i++) {
+                const rectangle = document.createElement('div');
+                rectangle.className = 'rectangle';
+                rectangle.innerText = userDeck[i];
+
+                rectangle.addEventListener('click', () => {
+                    selectNumber(rectangle, i);
+                });
+
+                container.appendChild(rectangle);
+            }
+        });
+
+        nameEl.addEventListener('input', () => {
+            //custom name
+            //
+        });
+
+        document.getElementById('cancel').addEventListener('click', () => {
+            document.getElementById('dialog').style.display = 'none';
+            const container = document.getElementById('rectangles-container');
+            container.innerHTML = '';
+            userSelected = { ids: [], as: [] };
+            selectedEl.textContent = 'You selected: ';
+        });
+
+        document.getElementById('confirm').addEventListener('click', () => {
+            document.getElementById('dialog').style.display = 'none';
+            const container = document.getElementById('rectangles-container');
+            container.innerHTML = '';
+
+            selectedEl.textContent = 'You selected: ';
+
+            socket.emit('place_cards', userSelected);
+
+            userSelected = { ids: [], as: [] };
+            //socket emit
+        });
+
+        function selectNumber(rectangle, id) {
+            const number = prompt('Select a number from 1 to 10:');
+            if (number >= 1 && number <= 10) {
+                rectangle.remove();
+                userSelected.ids.push(id);
+                userSelected.as.push(number);
+
+                selectedEl.textContent = 'You selected: ';
+                for (let i = 0; i < userSelected.ids.length; i++) {
+                    selectedEl.textContent += userDeck[userSelected.ids[i]] + ' as ' + userSelected.as[i] + ', ';
+                }
+            } else {
+                alert('Please select a number between 1 and 10.');
+            }
+        }
+
+
+    </script>
+
+</body>
+
+</html>
